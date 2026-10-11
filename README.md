@@ -11,7 +11,9 @@
 
 ### AI Engineering
 
-*No pages yet.*
+| Page | Description |
+|---|---|
+| [Data Preparation for Process Optimization with Agentic Workflows](content/ai-engineering/data-preparation/data-preparation-for-agentic-process-optimization.md) | How to prepare structured and unstructured data so AI agents can analyse, improve, and run business processes: parsing, enrichment, chunking, embeddings, indexing, governance, and evaluation. |
 
 ### Cloud Engineering
 
@@ -30,7 +32,7 @@
 | Folder | Contents |
 |---|---|
 | [content/developer-tooling/](content/developer-tooling/) | VS Code, Claude Code, GitHub Copilot |
-| [content/ai-engineering/](content/ai-engineering/) | Agents, MCP, RAG, knowledge graphs |
+| [content/ai-engineering/](content/ai-engineering/) | Agents, MCP, RAG, knowledge graphs, data preparation |
 | [content/cloud-engineering/](content/cloud-engineering/) | Azure, Microsoft Foundry |
 | [content/software-architecture/](content/software-architecture/) | Design patterns, ADRs, integration patterns |
 | [content/playbooks/](content/playbooks/) | Engineering playbooks |
