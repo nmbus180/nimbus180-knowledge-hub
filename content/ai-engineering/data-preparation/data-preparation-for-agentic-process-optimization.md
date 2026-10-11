@@ -33,7 +33,7 @@ This page describes how to prepare data for that purpose. It covers:
 - how to expose prepared data to agents as tools
 - governance, security, and evaluation
 
-It is written for engineers and architects designing these pipelines. It assumes familiarity with LLMs and retrieval-augmented generation (RAG) at a conceptual level.
+It is written for engineers and architects designing these pipelines. Technical terms are defined in the [glossary](#18-glossary) at the end. Each technical section ends with links to how the step is done with Microsoft technologies.
 
 ## 2. Start with the use case, then the data
 
@@ -47,7 +47,7 @@ Data preparation has no natural stopping point. There is always another source t
 | Process owners and front-line staff | Steps described as "chasing", "re-keying", "checking", or "waiting for"; known workarounds and shadow spreadsheets |
 | Customers | Recurring complaints, repeat contacts about the same case, status enquiries |
 | Audit, risk, and compliance | Control failures, findings about inconsistent handling, manual evidence gathering |
-| Process mining, where an event log already exists | Rework loops, rare but expensive variants, steps with long waits |
+| Process mining (reconstructing how a process runs from its event log, the record of every step taken on every case), where such a log already exists | Rework loops, rare but expensive variants, steps with long waits |
 | Finance | Write-offs, penalties, late-payment costs, overtime concentrated in one team |
 
 Collect more candidates than you need. A short workshop with a process owner, two or three practitioners, and someone who knows the systems typically produces ten to twenty.
@@ -177,7 +177,7 @@ Four kinds of knowledge sit underneath this table:
 | Process context | Why things happened: explanations, complaints, exceptions | Unstructured text attached to cases | Extraction into structured fields, plus retrieval |
 | Process structure | How things relate: steps, roles, systems, controls, KPIs | Scattered across all of the above | Knowledge graph or curated reference tables |
 
-**The central design rule:** match the preparation method to the kind of knowledge. Numbers and events are queried, not embedded. Prose is retrieved. Relationships are modelled. Most failed projects embed everything into one vector store and expect the model to sort it out.
+**The central design rule:** match the preparation method to the kind of knowledge. Numbers and events are queried with SQL or an API. Prose is retrieved by search. Relationships are modelled explicitly. Most failed projects instead convert everything into embeddings (numeric representations of meaning that support search by similarity, covered in section 10), load them into a single store, and expect the model to sort it out.
 
 ## 4. The preparation pipeline
 
@@ -204,13 +204,23 @@ flowchart LR
 | Parse and extract | Text and structure (headings, tables, lists) from each format | Which parser per format; when OCR or a vision model is needed |
 | Clean and normalise | De-duplicated, de-boilerplated, redacted content | What counts as a duplicate or a superseded version |
 | Enrich | Metadata, entities, classifications, extracted fields | Which fields are worth extracting, and how they are validated |
-| Chunk | Retrieval units with their context | Chunking strategy per document type |
-| Embed | Vectors per chunk | Embedding model, dimensions, versioning |
-| Index | Searchable stores | Vector, keyword, hybrid, graph, or a combination |
+| Chunk | Documents split into passages (chunks) small enough to search and retrieve individually | Chunking strategy per document type |
+| Embed | A vector per chunk: a list of numbers representing its meaning | Embedding model, dimensions, versioning |
+| Index | Searchable stores | Search by meaning (vector), by words (keyword), both (hybrid), by relationships (graph), or a combination |
 | Serve | Tools agents can call | Tool granularity, filters, citations, permissions |
 | Evaluate and monitor | Metrics and regression tests | The golden set; what triggers re-indexing |
 
 Keep the raw copy and every intermediate output. Chunking and embedding choices will change, and reprocessing from parsed text is far cheaper than re-ingesting and re-parsing.
+
+### With Microsoft technologies
+
+- [Design and develop a RAG solution on Azure](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-solution-design-and-evaluation-guide): Azure Architecture Center guide covering the whole pipeline, phase by phase.
+- [RAG and generative AI in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/retrieval-augmented-generation-overview): how the retrieval side fits together.
+- [Azure Data Lake Storage overview](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction): raw and intermediate storage.
+- [OneLake](https://learn.microsoft.com/en-us/fabric/onelake/onelake-overview): the equivalent store in Microsoft Fabric.
+- [Azure Data Factory](https://learn.microsoft.com/en-us/azure/data-factory/introduction): ingestion and orchestration from source systems.
+- [Data Factory in Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/data-factory/data-factory-overview): the Fabric-native alternative.
+- [Indexers in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-indexer-overview): scheduled, incremental ingestion straight into a search index.
 
 ## 5. Inventory before pipeline
 
@@ -269,6 +279,14 @@ Do not embed tables or event rows. Embeddings cannot count, sum, sort, or compar
 - **Describe the schema for the model.** A short data dictionary with table purposes, column meanings, units, allowed values, and join keys. This description is itself worth indexing so the agent can look it up.
 - **Give stable identifiers.** Every result should carry case IDs so the agent can drill from a metric to the cases behind it, and from a case to its documents.
 
+### With Microsoft technologies
+
+- [Process mining in Power Automate](https://learn.microsoft.com/en-us/power-automate/process-mining-overview): discover variants, bottlenecks, and rework from an event log.
+- [Prepare processes and data](https://learn.microsoft.com/en-us/power-automate/process-mining-processes-and-data): the event-log format and data requirements for process mining.
+- [Fabric Data Warehouse](https://learn.microsoft.com/en-us/fabric/data-warehouse/data-warehousing): store event logs and pre-computed process metrics.
+- [Azure Data Explorer](https://learn.microsoft.com/en-us/azure/data-explorer/data-explorer-overview): an alternative for high-volume, time-stamped event data.
+- [Fabric data agent](https://learn.microsoft.com/en-us/fabric/data-science/concept-data-agent): expose structured data to agents through natural-language queries.
+
 ## 7. Unstructured data
 
 Most of the explanation for *why* a process behaves as it does is unstructured: the procedure nobody follows, the email explaining why an approval took nine days, the ticket note that says "customer sent the wrong form again".
@@ -313,6 +331,20 @@ The goal of parsing is text that preserves the document's **structure**, because
 | Fix encoding and whitespace | Normalise Unicode, hyphenation, and line breaks | Prevents broken tokens and split words |
 
 Version resolution deserves the most attention. For process work, *which rule applied at the time* matters as much as what the rule says now, so keep superseded versions but make their status and validity period explicit and filterable.
+
+### With Microsoft technologies
+
+- [Azure Document Intelligence](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/overview): OCR and document extraction.
+- [Document layout analysis](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/layout): recover headings, paragraphs, tables, and reading order, with Markdown output.
+- [RAG with Document Intelligence](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/concept/retrieval-augmented-generation): using layout output as the basis for chunking.
+- [Azure Content Understanding](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/overview): extraction from documents, images, audio, and video.
+- [Vision-enabled chat models](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/gpt-with-vision): describe diagrams and process maps as text.
+- [Batch transcription](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/batch-transcription): transcribe call and meeting recordings.
+- [Outlook mail API in Microsoft Graph](https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview): read mailboxes, threads, and attachments.
+- [SharePoint in Microsoft 365 indexer](https://learn.microsoft.com/en-us/azure/search/search-how-to-index-sharepoint-online): index SharePoint document libraries.
+- [PII detection in Azure Language](https://learn.microsoft.com/en-us/azure/ai-services/language-service/personally-identifiable-information/overview): find and redact personal data.
+- [Language detection in Azure Language](https://learn.microsoft.com/en-us/azure/ai-services/language-service/language-detection/overview): tag each document with its language.
+- [RAG preparation phase](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-preparation-phase): guidance on analysing documents before building the pipeline.
 
 ## 8. Enrichment: metadata and structure from text
 
@@ -360,6 +392,14 @@ Practices that keep extraction trustworthy:
 - **Sample for human review continuously,** concentrating on low-confidence items and the "other" category, which signals when the taxonomy needs revising.
 - **Version the prompt and schema,** and record which version produced each value so results can be reprocessed.
 
+### With Microsoft technologies
+
+- [Structured outputs with Azure OpenAI](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs): schema-constrained JSON for extraction and classification.
+- [Skillsets in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/cognitive-search-working-with-skillsets): run enrichment steps inside the indexing pipeline.
+- [Custom named entity recognition](https://learn.microsoft.com/en-us/azure/ai-services/language-service/custom-named-entity-recognition/overview): train an extractor for your own entity types.
+- [Custom text classification](https://learn.microsoft.com/en-us/azure/ai-services/language-service/custom-text-classification/overview): train a classifier for your own categories.
+- [RAG chunk enrichment phase](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-enrichment-phase): which metadata fields to add to chunks, and why.
+
 ## 9. Chunking
 
 Embedding models and retrieval work on passages, not whole documents. A chunk is the unit that is embedded, retrieved, and placed in the agent's context. A chunk must be small enough to be specific and large enough to make sense alone.
@@ -385,6 +425,13 @@ Structure-aware chunking is the right default for process documentation. Add par
 - **Start with a moderate size and tune by measurement.** A few hundred tokens with modest overlap is a reasonable starting point; adjust using the evaluation set in section 13 rather than by intuition.
 - **Vary by document type.** A ticket is one chunk. A 60-page policy is many. A contract is chunked by clause.
 - **Keep the mapping.** Every chunk carries its document ID, position, and section path, so results can be cited, expanded to neighbours, and deleted when the source changes.
+
+### With Microsoft technologies
+
+- [Chunk documents](https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-chunk-documents): chunking approaches and options in Azure AI Search.
+- [Text Split skill](https://learn.microsoft.com/en-us/azure/search/cognitive-search-skill-textsplit): fixed-size chunking with overlap inside an indexer.
+- [Document Layout skill](https://learn.microsoft.com/en-us/azure/search/cognitive-search-skill-document-intelligence-layout): structure-aware chunking by headings inside an indexer.
+- [RAG chunking phase](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-chunking-phase): choosing a chunking strategy by document type.
 
 ## 10. Embeddings
 
@@ -439,6 +486,14 @@ Embeddings are useful beyond retrieval:
 - **Routing and classification** by similarity to labelled examples.
 - **Drift detection** by tracking how the distribution of incoming requests shifts over time.
 
+### With Microsoft technologies
+
+- [Generate embeddings with Azure OpenAI](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/embeddings): call an embedding model directly.
+- [Generate embeddings for Azure AI Search](https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-generate-embeddings): embedding documents and queries for a search index.
+- [Integrated vectorization](https://learn.microsoft.com/en-us/azure/search/vector-search-integrated-vectorization): have the indexer chunk and embed automatically.
+- [Compress vectors using quantization](https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-quantization): reduce vector storage and memory.
+- [RAG generate embeddings phase](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-generate-embeddings): choosing and evaluating an embedding model.
+
 ## 11. Indexing and retrieval
 
 ### 11.1 Stores and what they answer
@@ -482,6 +537,26 @@ Guidance:
 - **Keep it small and curated.** A few hundred well-maintained nodes describing one process are more useful than an automatically generated graph of everything.
 - **A graph database is optional at small scale.** A handful of relational reference tables can serve the same purpose.
 
+### With Microsoft technologies
+
+- [Vector search overview](https://learn.microsoft.com/en-us/azure/search/vector-search-overview): concepts in Azure AI Search.
+- [Create a vector index](https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-create-index): define vector fields and index configuration.
+- [Hybrid search overview](https://learn.microsoft.com/en-us/azure/search/hybrid-search-overview): how keyword and vector results are combined.
+- [Create a hybrid query](https://learn.microsoft.com/en-us/azure/search/hybrid-search-how-to-query): query syntax.
+- [Semantic ranking overview](https://learn.microsoft.com/en-us/azure/search/semantic-search-overview): reranking in Azure AI Search.
+- [Add semantic ranking](https://learn.microsoft.com/en-us/azure/search/semantic-how-to-query-request): enable reranking on a query.
+- [Text query filters](https://learn.microsoft.com/en-us/azure/search/search-filters): filter on metadata fields.
+- [Vector query filters](https://learn.microsoft.com/en-us/azure/search/vector-search-filters): combine filters with vector queries.
+- [Security filter pattern](https://learn.microsoft.com/en-us/azure/search/search-security-trimming-for-azure-search): trim results by the user's groups.
+- [Document-level access control](https://learn.microsoft.com/en-us/azure/search/search-document-level-access-overview): the available options for per-document permissions.
+- [RAG information-retrieval phase](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-information-retrieval): index design and search strategy.
+- [Vector search in Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search): vectors alongside operational data.
+- [pgvector on Azure Database for PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-use-pgvector): vectors in PostgreSQL.
+- [Vector search in SQL Server and Azure SQL](https://learn.microsoft.com/en-us/sql/sql-server/ai/vectors): vectors in the SQL engine.
+- [Azure Cosmos DB for Apache Gremlin](https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/overview): a managed graph database.
+- [Apache AGE on Azure Database for PostgreSQL](https://learn.microsoft.com/en-us/azure/postgresql/azure-ai/generative-ai-age-overview): graph queries inside PostgreSQL.
+- [GraphRAG](https://microsoft.github.io/graphrag/): Microsoft Research's open-source approach to building and querying a knowledge graph from text.
+
 ## 12. Serving prepared data to agents
 
 Prepared data reaches agents as **tools**. The design of those tools matters as much as the data behind them.
@@ -496,6 +571,16 @@ Prepared data reaches agents as **tools**. The design of those tools matters as 
 - **Budget context.** Retrieval that floods the context with marginal results degrades reasoning. Prefer fewer, reranked results; use subagents for large exploratory searches so only conclusions return to the main context.
 
 The Model Context Protocol (MCP) is a practical way to package these tools so that several agents and clients can share them. See [Claude Code Skills, Subagents, MCP & Hooks](../../developer-tooling/claude-code/skills-vs-subagents.md).
+
+### With Microsoft technologies
+
+- [MCP bindings for Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-mcp): host tools as an MCP server on Functions.
+- [Microsoft Foundry Agent Service](https://learn.microsoft.com/en-us/azure/foundry/agents/overview): build and host agents.
+- [Connect an Azure AI Search index to Foundry agents](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/ai-search): give an agent a retrieval tool.
+- [Connect agents to MCP server endpoints](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/model-context-protocol): give an agent MCP tools.
+- [Agentic retrieval in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/agentic-retrieval-overview): multi-query retrieval planned by a model.
+- [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/): the SDK for building agents and multi-agent workflows in .NET and Python.
+- [Fabric data agent](https://learn.microsoft.com/en-us/fabric/data-science/concept-data-agent): a query tool over structured data.
 
 ## 13. Evaluation
 
@@ -525,6 +610,15 @@ Diagnose failures from the bottom up. When an answer is wrong, check whether the
 - Log queries that returned nothing useful, and feed them back into the golden set and the content backlog. They often reveal missing documentation, which is itself a process finding.
 - Review a sample of real agent sessions regularly with a process owner.
 
+### With Microsoft technologies
+
+- [RAG evaluators](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/rag-evaluators): retrieval, groundedness, and relevance metrics in Microsoft Foundry.
+- [Cloud evaluation with the Foundry SDK](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/cloud-evaluation): run evaluations against a test set.
+- [RAG end-to-end evaluation phase](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/rag/rag-llm-evaluation-phase): what to measure and how to build the test set.
+- [Update or rebuild an index](https://learn.microsoft.com/en-us/azure/search/search-howto-reindex): re-indexing after pipeline changes.
+- [Changed and deleted blobs](https://learn.microsoft.com/en-us/azure/search/search-how-to-index-azure-blob-changed-deleted): incremental refresh and deletion propagation.
+- [Application Insights](https://learn.microsoft.com/en-us/azure/azure-monitor/app/app-insights-overview): monitoring and tracing.
+
 ## 14. Governance, security, and risk
 
 | Concern | Practice |
@@ -539,9 +633,16 @@ Diagnose failures from the bottom up. When an answer is wrong, check whether the
 | Auditability | Log which content was retrieved and cited for each agent recommendation or action. |
 | Human oversight | Process changes proposed by agents are reviewed by the process owner before adoption. |
 
+### With Microsoft technologies
+
+- [Microsoft Purview](https://learn.microsoft.com/en-us/purview/purview): catalogue, classification, and lineage.
+- [Document-level access control in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-document-level-access-overview): carry source permissions into retrieval.
+- [PII detection in Azure Language](https://learn.microsoft.com/en-us/azure/ai-services/language-service/personally-identifiable-information/overview): minimise personal data at ingestion.
+- [Prompt Shields in Azure AI Content Safety](https://learn.microsoft.com/en-us/azure/ai-services/content-safety/concepts/jailbreak-detection): detect prompt-injection attempts in user input and in documents.
+
 ## 15. Reference implementation on Azure
 
-One way to realise the pipeline on Azure. Each row lists common options, not requirements; verify current capabilities and regional availability before committing.
+One way to realise the pipeline on Azure. Each row lists common options, not requirements; verify current capabilities and regional availability before committing. How-to links for each stage are in the "With Microsoft technologies" list at the end of the corresponding section.
 
 | Stage | Options |
 |---|---|
@@ -598,6 +699,100 @@ One way to realise the pipeline on Azure. Each row lists common options, not req
 - [ ] Golden set built; baseline metrics recorded
 - [ ] Incremental refresh and deletion propagation working
 - [ ] Logging, lineage, and human review in place
+
+## 18. Glossary
+
+### Agents and models
+
+| Term | Meaning |
+|---|---|
+| LLM (large language model) | A model that reads and writes text, such as the ones behind Claude or Azure OpenAI. |
+| Agent | An LLM that works towards a goal in a loop: it decides what to do next, calls tools, reads the results, and continues until done. |
+| Agentic workflow | A piece of work carried out by one or more agents, usually with defined tools, checkpoints, and human approvals. |
+| Tool | A function an agent can call to read data or take an action, such as a search, a database query, or an API call. |
+| MCP (Model Context Protocol) | An open standard for packaging tools so different agents and applications can use them. |
+| Subagent | A separate agent given one part of a task, which returns only its conclusions to the main agent. |
+| Token | The unit in which models measure text; roughly three-quarters of an English word. |
+| Context (context window) | The text a model can see at once: instructions, conversation, and retrieved content. It is limited, so what goes into it must be selected. |
+| Structured output | A model response constrained to a fixed format, usually JSON matching a schema, so software can use it reliably. |
+| Prompt injection | Text hidden in a document, email, or web page that tries to instruct the agent reading it. |
+
+### Process terms
+
+| Term | Meaning |
+|---|---|
+| Case | One run of a process: one order, one claim, one invoice. |
+| Event log | A table with one row for each thing that happened to a case, with at least a case ID, an activity name, and a timestamp. |
+| Process mining | Reconstructing how a process actually runs from its event log. |
+| Variant | One distinct path through a process. Most processes have a few common variants and many rare ones. |
+| Conformance | How closely actual cases follow the intended process. |
+| Cycle time / waiting time | Total elapsed time for a case or step / the part of it spent idle between steps. |
+| Rework | A step repeated because it was not right the first time. |
+| First-time-right | The share of cases completed without rework. |
+| SOP, SLA, KPI | Standard operating procedure; service-level agreement; key performance indicator. |
+| Data element | A single item of information needed to answer a question, such as "approval timestamp per approver". |
+| Data requirements matrix | The table mapping each question a use case must answer to the data elements, sources, and gaps (section 2.5). |
+
+### Preparing content
+
+| Term | Meaning |
+|---|---|
+| Structured data | Data in rows and columns with defined fields, such as database tables. |
+| Unstructured data | Content with no fixed fields: documents, emails, notes, transcripts, images. |
+| Parsing | Extracting text and structure (headings, tables, lists) from a file. |
+| OCR (optical character recognition) | Converting an image of text, such as a scan, into machine-readable text. |
+| Layout-aware extraction | Parsing that understands page layout, so columns, tables, and reading order are preserved. |
+| Metadata | Information about a piece of content: its source, type, owner, version, dates, and access rules. |
+| Enrichment | Adding metadata and extracted fields to content so it can be filtered, joined, and counted. |
+| Entity extraction | Finding named things in text, such as customers, products, systems, or amounts. |
+| Taxonomy | An agreed, fixed list of categories used for classification. |
+| PII | Personally identifiable information. |
+| Lineage | The record of where a piece of data came from and how it was transformed. |
+
+### Chunking and embeddings
+
+| Term | Meaning |
+|---|---|
+| Chunk | A passage of a document, typically a few paragraphs, stored and retrieved as one unit. |
+| Chunking | Splitting documents into chunks. Needed because search works better on focused passages, and because whole documents would overfill the model's context. |
+| Overlap | Text repeated between neighbouring chunks so that a sentence cut at a boundary still appears whole in one of them. |
+| Parent-child chunking | Searching over small chunks for precision, then giving the model the larger section each belongs to for context. |
+| Embedding | A list of numbers that represents the meaning of a piece of text, produced by an embedding model. Texts with similar meaning get similar numbers. |
+| Vector | The list of numbers itself. "Embedding" and "vector" are often used interchangeably. |
+| Dimensions | How many numbers are in each vector, commonly several hundred to a few thousand. |
+| Embedding model | The model that turns text into vectors. It is separate from the LLM that writes answers. |
+| Quantisation | Compressing vectors to use less storage and memory, at a small cost in accuracy. |
+
+### Search and retrieval
+
+| Term | Meaning |
+|---|---|
+| RAG (retrieval-augmented generation) | Finding relevant content first and giving it to the model with the question, so the answer is based on your documents instead of the model's general knowledge. |
+| Index | A data structure built for fast searching. |
+| Vector index / vector store | An index that finds the vectors closest to a query vector. |
+| Vector (semantic) search | Search by meaning: the query is embedded and compared with chunk embeddings. |
+| Keyword search / BM25 | Search by matching words. BM25 is the standard formula for scoring those matches. |
+| Hybrid search | Running vector and keyword search together and merging the results. |
+| Reranking | A second pass in which a more accurate, slower model re-scores the top results and keeps the best few. |
+| Cross-encoder | The kind of model used for reranking; it reads the query and a passage together to judge relevance. |
+| Metadata filter | A restriction applied to a search, such as "current versions only" or "this process only". |
+| Security trimming | Filtering search results to what the requesting user is permitted to see. |
+| Knowledge graph | Data stored as things (nodes) and the relationships between them (edges), such as "step → performed by → role". |
+| Ontology | The definition of which kinds of things and relationships a knowledge graph contains. |
+| Multi-hop question | A question that needs several relationships followed in turn, such as "which controls apply to steps performed by Finance?" |
+| GraphRAG | Retrieval that uses a knowledge graph built from the documents, alongside or instead of vector search. |
+
+### Evaluation
+
+| Term | Meaning |
+|---|---|
+| Golden set | A fixed list of test questions with known correct answers and supporting sources. |
+| Recall@k | Of the passages that should have been found, the share that appear in the top *k* results. |
+| Precision@k | Of the top *k* results, the share that are relevant. |
+| MRR (mean reciprocal rank) | A score reflecting how high the first relevant result appears, averaged over questions. |
+| nDCG | A score for the quality of the whole ranking, rewarding relevant results placed near the top. |
+| Groundedness | Whether every claim in an answer is supported by the retrieved content. |
+| Citation accuracy | Whether the sources an answer cites really say what the answer claims. |
 
 ## Related
 
