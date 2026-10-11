@@ -25,6 +25,7 @@ Agentic workflows can analyse how a business process runs, find where it loses t
 
 This page describes how to prepare data for that purpose. It covers:
 
+- how to choose a first use case, and derive from it the data elements required
 - what data process-optimization agents need, and where it lives
 - how to treat structured process data (event logs, transactions)
 - how to turn unstructured content (documents, email, tickets, transcripts) into something agents can use
@@ -34,7 +35,127 @@ This page describes how to prepare data for that purpose. It covers:
 
 It is written for engineers and architects designing these pipelines. It assumes familiarity with LLMs and retrieval-augmented generation (RAG) at a conceptual level.
 
-## 2. What process-optimization agents need
+## 2. Start with the use case, then the data
+
+Data preparation has no natural stopping point. There is always another source to ingest and another field to extract. The only thing that bounds the work is a specific use case: a named process, a measurable problem, and the decisions an agent is expected to support. Choose that first, then work backwards to the data it requires. Everything in the rest of this page is sized by that answer.
+
+### 2.1 Where candidate use cases come from
+
+| Source | What to look for |
+|---|---|
+| Operational metrics | Processes missing SLAs, long or highly variable cycle times, growing backlogs, high cost per case |
+| Process owners and front-line staff | Steps described as "chasing", "re-keying", "checking", or "waiting for"; known workarounds and shadow spreadsheets |
+| Customers | Recurring complaints, repeat contacts about the same case, status enquiries |
+| Audit, risk, and compliance | Control failures, findings about inconsistent handling, manual evidence gathering |
+| Process mining, where an event log already exists | Rework loops, rare but expensive variants, steps with long waits |
+| Finance | Write-offs, penalties, late-payment costs, overtime concentrated in one team |
+
+Collect more candidates than you need. A short workshop with a process owner, two or three practitioners, and someone who knows the systems typically produces ten to twenty.
+
+### 2.2 What makes a good first use case
+
+A first use case has two jobs: deliver a result the business cares about, and prove the approach with limited risk. Score each candidate on the criteria below.
+
+| Criterion | Favourable | Unfavourable |
+|---|---|---|
+| Business value | A measurable pain with an owner who wants it fixed | "Would be interesting to explore" |
+| Volume and repetition | Hundreds or thousands of cases a month | A few bespoke cases a year |
+| Measurability | A baseline metric exists or can be computed | Success would be a matter of opinion |
+| Knowledge and judgement content | Work involves reading, interpreting, comparing, or deciding from documents and text | Pure data movement that conventional automation already handles |
+| Data availability | Cases are recorded in a system; procedures are written down; text is accessible | Work happens by phone and memory; nothing is logged |
+| Scope | One process, or one stage of it, with a clear start and end | Spans many departments and systems |
+| Risk of error | Mistakes are detectable and reversible; a human reviews the outcome | Errors are irreversible, safety-critical, or regulated without review |
+| Sponsor and access | Named process owner; practitioners available to validate | No owner; experts have no time |
+| Stability | Process and systems are not about to be replaced | Mid-migration or under reorganisation |
+
+Data availability is a selection criterion, not an afterthought. A valuable use case whose data does not exist is a data-capture project, and should be chosen knowingly as one.
+
+A simple weighted score is enough to rank candidates. Plot the result as value against feasibility and start in the high-value, high-feasibility corner. Resist the most strategic, most complex candidate as the first: an early, visible success funds the harder ones.
+
+### 2.3 Start with analysis and assistance, before autonomy
+
+Use cases differ in how much the agent is trusted to do. The level determines both the risk and the data required.
+
+| Level | The agent... | Example | Additional data needs |
+|---|---|---|---|
+| 1. Analyse | Explains how the process runs and why it underperforms | "Why do 20% of invoices take more than 15 days to approve?" | Event log, process documentation, case text |
+| 2. Recommend | Proposes changes to the process, or next actions on a case, for a human to decide | "These three approval thresholds cause most of the rework" | As above, plus rules, constraints, and controls |
+| 3. Assist | Does preparatory work inside a live case; a human approves | Drafts the response, gathers the evidence, pre-fills the form | Live case state, reference data, templates, current rules |
+| 4. Act | Completes steps autonomously within defined limits | Approves low-value, fully matching invoices | All of the above, plus authoritative real-time data, write access, and audit logging |
+
+Most first use cases should sit at level 1 or 2. They need only read access to historical data, their errors are caught by the person reading the output, and what they uncover identifies which level 3 and 4 use cases are worth building.
+
+### 2.4 Write the use case down
+
+Before any data work, capture the use case in a one-page brief agreed with the process owner.
+
+| Element | Example |
+|---|---|
+| Process and boundaries | Supplier invoice approval, from invoice receipt to release for payment |
+| Problem statement | 20% of invoices exceed the 15-day target; late-payment penalties are rising |
+| Objective and metric | Reduce the share of invoices over 15 days from 20% to 10%; baseline from the last 12 months |
+| Autonomy level | 1–2: diagnose causes and recommend changes |
+| Users | Accounts Payable manager, process improvement lead |
+| Questions the agent must answer | See section 2.5 |
+| Decisions it supports | Which approval rules to change; where to add capacity; which suppliers to contact |
+| Out of scope | Payment execution; supplier onboarding |
+| Constraints | Segregation-of-duties controls; supplier bank details are restricted |
+| Owner and reviewers | Named process owner; two AP practitioners for validation |
+
+The list of questions is the most important line. It becomes the requirements for the data, and later the seed of the evaluation set (section 13).
+
+### 2.5 From use case to data elements
+
+Work backwards in four steps.
+
+**Step 1: List the questions and decisions.** Write the specific questions the agent must answer, in the users' words. Aim for ten to thirty.
+
+**Step 2: For each question, name the data elements needed to answer it.** A data element is a single item of information: a field, a document section, an extracted attribute. Be concrete: "approval timestamp per approver", not "approval data".
+
+**Step 3: Locate each element.** Identify the system or repository that holds it, its form, its owner, and how it can be accessed.
+
+**Step 4: Assess each element and record the gaps.** Does it exist? Is it complete, accurate, and current? Can it be linked to a case? Is access permitted?
+
+Continuing the invoice example:
+
+| Question | Data elements needed | Kind | Likely source | Typical gap |
+|---|---|---|---|---|
+| How long does each step take, and where do invoices wait? | Invoice ID; activity; start and end timestamp per step; approver | Process evidence | ERP workflow tables | Only completion times recorded; waits must be inferred |
+| Which invoices are slow? | Supplier, amount, category, entity, PO or non-PO, channel received | Process evidence (case attributes) | ERP invoice header; vendor master | Channel not recorded |
+| What is the approval path supposed to be? | Approval matrix: thresholds, approver roles, delegation rules | Process intent | Finance policy document; workflow configuration | Policy and system configuration disagree |
+| Why were slow invoices delayed? | Rejection and query reasons; approver comments; supplier correspondence | Process context | Workflow comments; AP shared mailbox; ticket notes | Free text only; emails not linked to invoice ID |
+| Are delays linked to missing information? | PO match result; goods-receipt status; missing-field flags | Process evidence | ERP matching tables | Available, but in a separate module with a different key |
+| Which controls constrain a redesign? | Segregation-of-duties rules; audit requirements per step | Process structure | Controls register; audit reports | Controls not mapped to process steps |
+| What do late payments cost? | Payment date; due date; penalty and discount terms | Process evidence and intent | ERP payments; supplier contracts | Terms held only in scanned contracts |
+
+The **Kind** column maps each element to the categories in section 3, which in turn determine how it is prepared: evidence is modelled and queried (section 6), intent and context are parsed, enriched, and indexed (sections 7 to 11), and structure is modelled as a graph or reference tables (section 11.3).
+
+This table, completed for all questions, is the **data requirements matrix**. Three things follow from it:
+
+- **Scope.** Sources that appear in no row are out of scope, however available they are.
+- **Priorities.** Elements needed by many questions are prepared first.
+- **A gap list.** Every gap needs a decision, below.
+
+### 2.6 Deal with the gaps
+
+| Gap | Options |
+|---|---|
+| Element exists but is locked in free text | Extract it into a structured field (section 8.2) |
+| Element exists but is not linked to a case | Build the link: match on identifiers in subject lines, references, dates, and parties; record match confidence |
+| Element exists in two sources that disagree | Decide with the owner which is authoritative; record the conflict as a finding |
+| Element is of poor quality | Clean it if cheap; otherwise use it with an explicit caveat, or narrow the question |
+| Element is not captured at all | Start capturing it now; meanwhile infer it from related data and mark it as inferred, or drop the question |
+| Element is restricted | Mask or aggregate it; seek approval; or redesign the question so it is not needed |
+
+Gaps are findings as well as obstacles. A policy that contradicts the system configuration, a delay reason that nobody records, or a control nobody can trace to a step is often part of why the process underperforms, and belongs in the report to the process owner.
+
+Finish with an explicit go/no-go: are enough of the questions answerable with data that exists or can be prepared in reasonable time? If fewer than roughly two-thirds are, narrow the use case or pick the next candidate.
+
+### 2.7 Then expand
+
+Once the first use case is delivering, choose the next one to reuse as much of the prepared data as possible: the same process at a higher autonomy level, or an adjacent process that shares sources. Each new use case should add a few elements to an existing foundation, not start a new pipeline.
+
+## 3. What process-optimization agents need
 
 A process-optimization engagement moves through recognisable phases. Each needs different data.
 
@@ -58,7 +179,7 @@ Four kinds of knowledge sit underneath this table:
 
 **The central design rule:** match the preparation method to the kind of knowledge. Numbers and events are queried, not embedded. Prose is retrieved. Relationships are modelled. Most failed projects embed everything into one vector store and expect the model to sort it out.
 
-## 3. The preparation pipeline
+## 4. The preparation pipeline
 
 ```mermaid
 flowchart LR
@@ -91,9 +212,9 @@ flowchart LR
 
 Keep the raw copy and every intermediate output. Chunking and embedding choices will change, and reprocessing from parsed text is far cheaper than re-ingesting and re-parsing.
 
-## 4. Inventory before pipeline
+## 5. Inventory before pipeline
 
-Before building anything, list the sources and decide which ones matter. For each source record:
+The data requirements matrix from section 2.5 names the sources that matter. Before building anything, record for each of them:
 
 | Attribute | Why it matters |
 |---|---|
@@ -108,9 +229,9 @@ Before building anything, list the sources and decide which ones matter. For eac
 
 Start with one process and the smallest set of sources that describes it well. A small, clean, authoritative corpus outperforms a large, noisy one, because retrieval precision drops as near-duplicate and contradictory content grows.
 
-## 5. Structured process data
+## 6. Structured process data
 
-### 5.1 Event logs
+### 6.1 Event logs
 
 Process analysis rests on the **event log**: one row per thing that happened to a case.
 
@@ -125,7 +246,7 @@ Process analysis rests on the **event log**: one row per thing that happened to 
 
 From an event log you can derive the process variants that actually occur, cycle and waiting times, rework loops, handoffs, and conformance against the intended model.
 
-### 5.2 Common problems and fixes
+### 6.2 Common problems and fixes
 
 | Problem | Effect | Fix |
 |---|---|---|
@@ -139,7 +260,7 @@ From an event log you can derive the process variants that actually occur, cycle
 | Duplicated events | Inflated rework counts | De-duplicate on case, activity, timestamp, and resource |
 | Incomplete cases at extraction cut-off | Skewed duration statistics | Flag open cases and exclude them from end-to-end metrics |
 
-### 5.3 How agents should use structured data
+### 6.3 How agents should use structured data
 
 Do not embed tables or event rows. Embeddings cannot count, sum, sort, or compare, and an agent given fifty retrieved rows will not compute a median reliably. Instead:
 
@@ -148,11 +269,11 @@ Do not embed tables or event rows. Embeddings cannot count, sum, sort, or compar
 - **Describe the schema for the model.** A short data dictionary with table purposes, column meanings, units, allowed values, and join keys. This description is itself worth indexing so the agent can look it up.
 - **Give stable identifiers.** Every result should carry case IDs so the agent can drill from a metric to the cases behind it, and from a case to its documents.
 
-## 6. Unstructured data
+## 7. Unstructured data
 
 Most of the explanation for *why* a process behaves as it does is unstructured: the procedure nobody follows, the email explaining why an approval took nine days, the ticket note that says "customer sent the wrong form again".
 
-### 6.1 Source types
+### 7.1 Source types
 
 | Source | What it contributes | Particular difficulty |
 |---|---|---|
@@ -167,19 +288,19 @@ Most of the explanation for *why* a process behaves as it does is unstructured: 
 | Spreadsheets | Shadow processes and trackers | Structure is implicit in layout; often really structured data |
 | Wikis and intranets | Tribal knowledge | Navigation boilerplate; unknown authority |
 
-### 6.2 Parsing and extraction
+### 7.2 Parsing and extraction
 
 The goal of parsing is text that preserves the document's **structure**, because structure drives chunking and retrieval quality.
 
 - **Convert to a structured intermediate format.** Markdown or a JSON document model, with headings, lists, tables, and reading order preserved. A numbered procedure flattened into a paragraph loses its meaning.
 - **Use layout-aware extraction for PDFs and scans.** Plain text extraction scrambles multi-column layouts, headers and footers, and tables. Layout models and OCR services recover reading order and table cells.
 - **Treat tables as tables.** Keep them intact as a unit, in a form that keeps row and column headers attached to values (Markdown or HTML). For large tables, consider loading them into a structured store instead.
-- **Handle images and diagrams deliberately.** For process maps, generate a textual description with a vision-capable model ("Step 3, Credit check, is performed by Finance; if it fails, the flow returns to Step 1") and index that alongside a link to the original. Better still, extract the steps and transitions into structured form (see sections 7.2 and 10.3).
+- **Handle images and diagrams deliberately.** For process maps, generate a textual description with a vision-capable model ("Step 3, Credit check, is performed by Finance; if it fails, the flow returns to Step 1") and index that alongside a link to the original. Better still, extract the steps and transitions into structured form (see sections 8.2 and 11.3).
 - **Thread emails and chats.** Reconstruct the conversation, strip quoted replies, signatures, and legal disclaimers, and keep sender, recipients, date, and subject as metadata. Process attachments as linked documents.
 - **Segment transcripts.** Keep speaker labels and timestamps, split by topic or turn, and consider indexing an LLM-written summary per segment alongside the verbatim text.
 - **Record extraction confidence.** Low-confidence OCR output should be flagged so that agents and evaluators can discount it.
 
-### 6.3 Cleaning and normalisation
+### 7.3 Cleaning and normalisation
 
 | Step | What to do | Why |
 |---|---|---|
@@ -193,11 +314,11 @@ The goal of parsing is text that preserves the document's **structure**, because
 
 Version resolution deserves the most attention. For process work, *which rule applied at the time* matters as much as what the rule says now, so keep superseded versions but make their status and validity period explicit and filterable.
 
-## 7. Enrichment: metadata and structure from text
+## 8. Enrichment: metadata and structure from text
 
 Enrichment turns a pile of text into something that can be filtered, joined, and counted. It is the step that most improves agent accuracy, and the one most often skipped.
 
-### 7.1 Metadata
+### 8.1 Metadata
 
 Attach metadata to every document, and carry it down to every chunk.
 
@@ -216,7 +337,7 @@ Attach metadata to every document, and carry it down to every chunk.
 
 The link between unstructured content and **case IDs** is what makes diagnosis possible: it lets an agent move from "this variant takes nine days longer" to the notes and emails attached to cases in that variant.
 
-### 7.2 Extracting structure from text
+### 8.2 Extracting structure from text
 
 Much of the value in unstructured data for process optimization comes from converting it into structured fields that can then be counted and joined to the event log.
 
@@ -239,11 +360,11 @@ Practices that keep extraction trustworthy:
 - **Sample for human review continuously,** concentrating on low-confidence items and the "other" category, which signals when the taxonomy needs revising.
 - **Version the prompt and schema,** and record which version produced each value so results can be reprocessed.
 
-## 8. Chunking
+## 9. Chunking
 
 Embedding models and retrieval work on passages, not whole documents. A chunk is the unit that is embedded, retrieved, and placed in the agent's context. A chunk must be small enough to be specific and large enough to make sense alone.
 
-### 8.1 Strategies
+### 9.1 Strategies
 
 | Strategy | How it works | Good for | Weakness |
 |---|---|---|---|
@@ -256,22 +377,22 @@ Embedding models and retrieval work on passages, not whole documents. A chunk is
 
 Structure-aware chunking is the right default for process documentation. Add parent-child retrieval when answers need more context than the matching passage.
 
-### 8.2 Guidelines
+### 9.2 Guidelines
 
 - **Never split a procedure mid-step, or a table mid-row.** Keep a numbered procedure together where it fits; where it does not, split between steps and repeat the procedure title and preceding step number in each part.
 - **Make every chunk self-describing.** Prepend the document title and section path ("Credit Policy v4 > 4. Approvals > 4.2 Thresholds") to the chunk text before embedding. A chunk reading "the limit is 10,000 for this category" is unretrievable and unusable without it.
 - **Consider generated context.** For corpora where chunks depend heavily on surrounding text, have an LLM write one or two sentences situating each chunk within its document, and prepend that before embedding and keyword indexing. This costs an LLM call per chunk but can reduce retrieval misses noticeably.
-- **Start with a moderate size and tune by measurement.** A few hundred tokens with modest overlap is a reasonable starting point; adjust using the evaluation set in section 12 rather than by intuition.
+- **Start with a moderate size and tune by measurement.** A few hundred tokens with modest overlap is a reasonable starting point; adjust using the evaluation set in section 13 rather than by intuition.
 - **Vary by document type.** A ticket is one chunk. A 60-page policy is many. A contract is chunked by clause.
 - **Keep the mapping.** Every chunk carries its document ID, position, and section path, so results can be cited, expanded to neighbours, and deleted when the source changes.
 
-## 9. Embeddings
+## 10. Embeddings
 
-### 9.1 What they are
+### 10.1 What they are
 
 An embedding model converts a piece of text into a vector of numbers (typically several hundred to a few thousand dimensions) such that texts with similar meaning produce vectors that are close together. Searching by vector distance finds passages that are *about* the same thing as the query, even when they share no words: "delayed payment authorisation" can match "invoice approval took too long".
 
-### 9.2 What they are good and bad at
+### 10.2 What they are good and bad at
 
 | Embeddings handle well | Embeddings handle poorly |
 |---|---|
@@ -282,9 +403,9 @@ An embedding model converts a piece of text into a vector of numbers (typically 
 | Finding similar cases or similar complaints | Recency and validity ("the current policy") |
 | | Rare internal jargon the model never saw |
 
-The right-hand column is why embeddings are combined with keyword search, metadata filters, and structured queries (section 10), and never used alone.
+The right-hand column is why embeddings are combined with keyword search, metadata filters, and structured queries (section 11), and never used alone.
 
-### 9.3 Choosing a model
+### 10.3 Choosing a model
 
 | Criterion | What to consider |
 |---|---|
@@ -298,7 +419,7 @@ The right-hand column is why embeddings are combined with keyword search, metada
 | Domain fit | Specialised vocabulary may justify a domain-tuned model, but try hybrid search and a glossary first |
 | Modality | Multimodal embeddings if images or diagrams must be searched directly |
 
-### 9.4 Operating rules
+### 10.4 Operating rules
 
 - **One model per index.** Queries and documents must be embedded by the same model and version. Vectors from different models are not comparable.
 - **Record the model and version with every vector.** Changing the model means re-embedding the whole corpus; plan for it by building the new index alongside the old one and switching over after evaluation.
@@ -308,7 +429,7 @@ The right-hand column is why embeddings are combined with keyword search, metada
 - **Estimate storage early.** Uncompressed, a vector takes roughly four bytes per dimension, so one million chunks at 1,536 dimensions is about 6 GB before index overhead. Vector quantisation reduces this substantially at a small quality cost.
 - **Do not fine-tune first.** Better parsing, chunking, metadata, hybrid search, and reranking usually deliver more than a custom embedding model, at lower cost.
 
-### 9.5 Other uses of embeddings in process work
+### 10.5 Other uses of embeddings in process work
 
 Embeddings are useful beyond retrieval:
 
@@ -318,9 +439,9 @@ Embeddings are useful beyond retrieval:
 - **Routing and classification** by similarity to labelled examples.
 - **Drift detection** by tracking how the distribution of incoming requests shifts over time.
 
-## 10. Indexing and retrieval
+## 11. Indexing and retrieval
 
-### 10.1 Stores and what they answer
+### 11.1 Stores and what they answer
 
 | Question type | Example | Store |
 |---|---|---|
@@ -331,7 +452,7 @@ Embeddings are useful beyond retrieval:
 | Relational | "Which controls apply to steps performed by Finance in SAP?" | Knowledge graph |
 | Global / thematic | "What are the main causes of rework?" | Extracted fields aggregated in a structured store; or summaries over clusters |
 
-### 10.2 Hybrid search and reranking
+### 11.2 Hybrid search and reranking
 
 - **Hybrid search** runs a vector query and a keyword (BM25) query together and fuses the results. It covers the weaknesses of each: vectors catch paraphrase, keywords catch identifiers and rare terms. Make it the default.
 - **Metadata filters** narrow the search before ranking: process, document type, status = current, language, date range. Filtering on "current version only" removes the largest single source of wrong answers.
@@ -339,7 +460,7 @@ Embeddings are useful beyond retrieval:
 - **Security trimming** applies the user's access groups as a mandatory filter, so retrieval never returns content the requesting user could not open in the source system.
 - **Result shape.** Return the chunk text, section path, source link, version, and dates, so the agent can cite and judge freshness.
 
-### 10.3 Knowledge graphs for process structure
+### 11.3 Knowledge graphs for process structure
 
 Processes are inherently relational: a process has steps, steps are performed by roles using systems, are governed by controls, consume and produce documents, and are measured by KPIs. A vector index cannot answer multi-hop questions over those relationships. A knowledge graph can.
 
@@ -361,7 +482,7 @@ Guidance:
 - **Keep it small and curated.** A few hundred well-maintained nodes describing one process are more useful than an automatically generated graph of everything.
 - **A graph database is optional at small scale.** A handful of relational reference tables can serve the same purpose.
 
-## 11. Serving prepared data to agents
+## 12. Serving prepared data to agents
 
 Prepared data reaches agents as **tools**. The design of those tools matters as much as the data behind them.
 
@@ -376,15 +497,15 @@ Prepared data reaches agents as **tools**. The design of those tools matters as 
 
 The Model Context Protocol (MCP) is a practical way to package these tools so that several agents and clients can share them. See [Claude Code Skills, Subagents, MCP & Hooks](../../developer-tooling/claude-code/skills-vs-subagents.md).
 
-## 12. Evaluation
+## 13. Evaluation
 
 Data preparation is only as good as what can be measured. Build the evaluation set before tuning anything.
 
-### 12.1 The golden set
+### 13.1 The golden set
 
-Assemble 50 to 200 realistic questions with the business, covering each question type in section 10.1. For each, record the expected answer and the documents, sections, or cases that support it. Include questions whose correct answer is "the documentation does not say", and questions where an outdated version would give a different answer.
+Assemble 50 to 200 realistic questions with the business, covering each question type in section 11.1. For each, record the expected answer and the documents, sections, or cases that support it. Include questions whose correct answer is "the documentation does not say", and questions where an outdated version would give a different answer.
 
-### 12.2 What to measure
+### 13.2 What to measure
 
 | Layer | Metric | Tells you |
 |---|---|---|
@@ -397,14 +518,14 @@ Assemble 50 to 200 realistic questions with the business, covering each question
 
 Diagnose failures from the bottom up. When an answer is wrong, check whether the content was parsed correctly, then whether it was retrieved, and only then whether the model reasoned badly. Most failures are retrieval or data failures.
 
-### 12.3 Ongoing
+### 13.3 Ongoing
 
 - Re-run the golden set on every change to parsing, chunking, the embedding model, or the index configuration.
 - Monitor freshness: the lag between a source change and the index reflecting it.
 - Log queries that returned nothing useful, and feed them back into the golden set and the content backlog. They often reveal missing documentation, which is itself a process finding.
 - Review a sample of real agent sessions regularly with a process owner.
 
-## 13. Governance, security, and risk
+## 14. Governance, security, and risk
 
 | Concern | Practice |
 |---|---|
@@ -418,7 +539,7 @@ Diagnose failures from the bottom up. When an answer is wrong, check whether the
 | Auditability | Log which content was retrieved and cited for each agent recommendation or action. |
 | Human oversight | Process changes proposed by agents are reviewed by the process owner before adoption. |
 
-## 14. Reference implementation on Azure
+## 15. Reference implementation on Azure
 
 One way to realise the pipeline on Azure. Each row lists common options, not requirements; verify current capabilities and regional availability before committing.
 
@@ -437,10 +558,11 @@ One way to realise the pipeline on Azure. Each row lists common options, not req
 | Governance | Microsoft Purview (catalogue, classification, lineage); Microsoft Entra ID for identity and group-based trimming |
 | Monitoring | Application Insights; Foundry evaluation tooling |
 
-## 15. Common pitfalls
+## 16. Common pitfalls
 
 | Pitfall | Consequence | Instead |
 |---|---|---|
+| Preparing data before choosing a use case | Large pipelines that answer no particular question | Pick the use case, list its questions, derive the data elements |
 | Embedding everything into one vector store | Agents cannot count, compare, or join | Route each kind of knowledge to the right store |
 | Indexing every version of every document | Confident answers from superseded rules | Resolve versions; filter to current by default |
 | Fixed-size chunking of procedures and tables | Steps and values separated from their meaning | Structure-aware chunking with section context |
@@ -453,9 +575,12 @@ One way to realise the pipeline on Azure. Each row lists common options, not req
 | Treating ingestion as a one-off | Index drifts from reality within weeks | Incremental refresh with deletion propagation |
 | Starting with the whole enterprise | Months of pipeline work before any insight | One process, a small authoritative corpus, then expand |
 
-## 16. Readiness checklist
+## 17. Readiness checklist
 
-- [ ] Target process and success metrics agreed with the process owner
+- [ ] Candidate use cases scored; first use case selected and written up as a brief
+- [ ] Target process, autonomy level, and success metrics agreed with the process owner
+- [ ] Questions the agent must answer listed; data requirements matrix completed
+- [ ] Gaps reviewed with the owner; go/no-go decision made
 - [ ] Source inventory complete, with owners, authority, and sensitivity recorded
 - [ ] Event log built, with case correlation across systems and timestamps normalised
 - [ ] Core process metrics pre-computed and exposed through a query tool
