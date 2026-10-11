@@ -7,7 +7,7 @@
 | Page | Description |
 |---|---|
 | [AI-Assisted Development with VS Code, Claude Code & GitHub Copilot](content/developer-tooling/vscode/claude-code-copilot-guide.md) | Engineering guide for configuring and using AI coding assistants, skills, subagents, MCP servers, and development workflows. |
-| [Claude Code Skills vs. Subagents](content/developer-tooling/claude-code/skills-vs-subagents.md) | Side-by-side comparison of Claude Code skills and subagents. |
+| [Claude Code Skills, Subagents, MCP & Hooks](content/developer-tooling/claude-code/skills-vs-subagents.md) | How the four Claude Code extension mechanisms differ: a skills vs. subagents comparison, plus detailed descriptions of MCP servers and hooks. |
 
 ### AI Engineering
 

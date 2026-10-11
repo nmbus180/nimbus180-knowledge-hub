@@ -387,7 +387,7 @@ Use restricted tool permissions for review-only agents.
 
 ### Skills vs. subagents
 
-For a side-by-side comparison, see [Claude Code Skills vs. Subagents](../claude-code/skills-vs-subagents.md).
+For a side-by-side comparison, and detailed descriptions of MCP and hooks, see [Claude Code Skills, Subagents, MCP & Hooks](../claude-code/skills-vs-subagents.md).
 
 ---
 
